@@ -138,7 +138,3 @@ The upscaler uses [Real-ESRGAN-ncnn-vulkan](https://github.com/xinntao/Real-ESRG
 - **CBR**: Comic Book RAR - RAR compressed archive containing comic images
 - **CBZ**: Comic Book ZIP - ZIP compressed archive containing comic images
 - **PDF**: Portable Document Format - may contain embedded comic images
-
-## Contributing
-
-Feel free to submit issues, feature requests, or pull requests to improve these tools.
