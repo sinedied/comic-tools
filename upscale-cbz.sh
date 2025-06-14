@@ -302,7 +302,7 @@ process_cbz() {
     cbz_name=$(basename "$cbz_file" .cbz)
     temp_dir=$(mktemp -d)
     local upscaled_dir="$cbz_dir/upscaled"
-    local output_file="$upscaled_dir/${cbz_name}_upscaled.cbz"
+    local output_file="$upscaled_dir/${cbz_name}.cbz"
     local original_dir
     original_dir=$(pwd)
     
@@ -356,7 +356,7 @@ process_cbz() {
         local basename
         basename=$(basename "$image_file")
         local name="${basename%.*}"
-        local upscaled_png="upscaled/${name}_upscaled.png"
+        local upscaled_png="upscaled/${name}.png"
         local final_jpg="upscaled/${name}.jpg"
         
         echo "    Upscaling: $basename"

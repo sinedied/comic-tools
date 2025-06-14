@@ -116,7 +116,7 @@ sudo apt install imagemagick
 ## Output
 
 - **CBR/PDF conversion**: Converted files are saved in a `converted/` subdirectory
-- **CBZ upscaling**: Upscaled files are saved in an `upscaled/` subdirectory with `_upscaled` suffix
+- **CBZ upscaling**: Upscaled files are saved in an `upscaled/` subdirectory with original filenames
 - Original files are preserved (not deleted)
 - Progress and statistics are displayed during conversion
 - Error messages are shown for any files that fail to convert
