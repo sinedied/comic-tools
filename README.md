@@ -56,10 +56,10 @@ Upscales images in CBZ files using AI-powered Real-ESRGAN-ncnn-vulkan and recomp
 ### macOS (using Homebrew)
 ```bash
 # For CBR to CBZ conversion
-brew install rar
+brew install rar zip
 
 # For PDF to CBZ conversion
-brew install poppler
+brew install poppler zip
 
 # For CBZ upscaling
 brew install imagemagick
