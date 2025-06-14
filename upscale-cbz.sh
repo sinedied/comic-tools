@@ -187,10 +187,14 @@ setup_realesrgan() {
     cd "$REALESRGAN_DIR"
     
     if [[ "$filename" == *.zip ]]; then
-        if ! unzip -q "$filename"; then
-            echo -e "${RED}Error:${NC} Failed to extract ZIP archive"
-            cd "$original_dir"
-            exit 1
+        # Use -O UTF-8 to handle special characters in filenames properly
+        if ! unzip -q -O UTF-8 "$filename" 2>/dev/null; then
+            # Fallback: try without UTF-8 option if it fails
+            if ! unzip -q "$filename"; then
+                echo -e "${RED}Error:${NC} Failed to extract ZIP archive"
+                cd "$original_dir"
+                exit 1
+            fi
         fi
     elif [[ "$filename" == *.tar.gz ]]; then
         if ! tar -xzf "$filename"; then
@@ -442,7 +446,51 @@ process_cbz() {
     # Extract CBZ to temporary directory
     echo "  Extracting CBZ..."
     cd "$temp_dir"
-    if ! unzip -q "$abs_cbz_file"; then
+    
+    # Try different approaches to handle special characters in filenames
+    extracted=false
+    
+    # Method 1: Try with jq option to flatten directory structure (avoids some encoding issues)
+    if ! $extracted && unzip -j -q "$abs_cbz_file" 2>/dev/null; then
+        extracted=true
+    fi
+    
+    # Method 2: Try with different locale settings
+    if ! $extracted; then
+        for locale in "en_US.UTF-8" "C" "POSIX"; do
+            if LC_ALL="$locale" LANG="$locale" unzip -q "$abs_cbz_file" 2>/dev/null; then
+                extracted=true
+                break
+            fi
+        done
+    fi
+    
+    # Method 3: Try with Python as fallback (better Unicode support)
+    if ! $extracted && command -v python3 >/dev/null; then
+        if python3 -c "
+import zipfile
+import sys
+try:
+    with zipfile.ZipFile('$abs_cbz_file', 'r') as zip_ref:
+        zip_ref.extractall('.')
+    sys.exit(0)
+except Exception as e:
+    sys.exit(1)
+" 2>/dev/null; then
+            extracted=true
+        fi
+    fi
+    
+    # Method 4: Final fallback - allow unzip errors but continue if some files were extracted
+    if ! $extracted; then
+        unzip -q "$abs_cbz_file" 2>/dev/null || true
+        # Check if any files were actually extracted
+        if [ "$(find . -type f | wc -l)" -gt 0 ]; then
+            extracted=true
+        fi
+    fi
+    
+    if ! $extracted; then
         echo -e "${RED}  Error:${NC} Failed to extract $cbz_file"
         cd "$original_dir"
         rm -rf "$temp_dir"
