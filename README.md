@@ -2,6 +2,8 @@
 
 A collection of command-line tools for processing and converting digital comics into different formats.
 
+> **Note:** These scripts were generated with the assistance of [GitHub Copilot](https://github.com/features/copilot), an AI-powered coding tool.
+
 ## Tools Included
 
 ### `cbr2cbz.sh` - CBR to CBZ Converter
