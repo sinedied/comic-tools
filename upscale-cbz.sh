@@ -120,15 +120,15 @@ detect_platform() {
 setup_realesrgan() {
     local platform
     platform=$(detect_platform)
-    local github_api="https://api.github.com/repos/xinntao/Real-ESRGAN-ncnn-vulkan/releases/latest"
+    local github_api="https://api.github.com/repos/xinntao/Real-ESRGAN/releases/tags/v0.2.5.0"
     
-    echo -e "${BLUE}Setting up Real-ESRGAN-ncnn-vulkan...${NC}"
+    echo -e "${BLUE}Setting up Real-ESRGAN (with models)...${NC}"
     
     # Create model directory
     mkdir -p "$REALESRGAN_DIR"
     
-    # Get latest release info
-    echo "  Fetching latest release information..."
+    # Get release info for v0.2.5.0
+    echo "  Fetching Real-ESRGAN v0.2.5.0 release information..."
     local release_info
     if ! release_info=$(curl -s "$github_api"); then
         echo -e "${RED}Error:${NC} Failed to fetch release information from GitHub"
@@ -140,7 +140,7 @@ setup_realesrgan() {
     if [ "$platform" = "macos" ]; then
         download_url=$(echo "$release_info" | grep -o '"browser_download_url": "[^"]*macos[^"]*"' | head -1 | cut -d'"' -f4)
     else
-        download_url=$(echo "$release_info" | grep -o '"browser_download_url": "[^"]*ubuntu[^"]*"' | head -1 | cut -d'"' -f4)
+        download_url=$(echo "$release_info" | grep -o '"browser_download_url": "[^"]*linux[^"]*"' | head -1 | cut -d'"' -f4)
     fi
     
     if [ -z "$download_url" ]; then
@@ -182,36 +182,37 @@ setup_realesrgan() {
     fi
     
     # Find the extracted directory and binary
-    local extracted_dir
-    extracted_dir=$(find . -maxdepth 1 -type d -name "*Real-ESRGAN*" -o -name "*realesrgan*" | head -1)
-    if [ -z "$extracted_dir" ]; then
-        echo -e "${RED}Error:${NC} Could not find extracted Real-ESRGAN directory"
-        cd "$original_dir"
-        exit 1
-    fi
-    
     local binary_name="realesrgan-ncnn-vulkan"
-    if [ "$platform" = "macos" ]; then
-        # On macOS, check for binary directly or in app bundle
-        if [ -f "$extracted_dir/$binary_name" ]; then
-            REALESRGAN_BIN="$(pwd)/$extracted_dir/$binary_name"
-        else
-            # Look for .app bundle
-            local app_bundle
-            for app_bundle in "$extracted_dir"/*.app; do
-                if [ -f "$app_bundle/Contents/MacOS/$binary_name" ]; then
-                    REALESRGAN_BIN="$(pwd)/$app_bundle/Contents/MacOS/$binary_name"
-                    break
+    
+    # Check if binary is directly in the extraction directory
+    if [ -f "./$binary_name" ]; then
+        REALESRGAN_BIN="$(pwd)/$binary_name"
+    else
+        # Look for binary in subdirectories
+        local extracted_dir
+        extracted_dir=$(find . -maxdepth 1 -type d -name "*Real-ESRGAN*" -o -name "*realesrgan*" | head -1)
+        if [ -n "$extracted_dir" ]; then
+            if [ -f "$extracted_dir/$binary_name" ]; then
+                REALESRGAN_BIN="$(pwd)/$extracted_dir/$binary_name"
+            else
+                # Look for .app bundle on macOS
+                if [ "$platform" = "macos" ]; then
+                    local app_bundle
+                    for app_bundle in "$extracted_dir"/*.app; do
+                        if [ -f "$app_bundle/Contents/MacOS/$binary_name" ]; then
+                            REALESRGAN_BIN="$(pwd)/$app_bundle/Contents/MacOS/$binary_name"
+                            break
+                        fi
+                    done
                 fi
-            done
-            if [ -z "$REALESRGAN_BIN" ]; then
-                echo -e "${RED}Error:${NC} Could not find Real-ESRGAN binary in extracted files"
-                cd "$original_dir"
-                exit 1
             fi
         fi
-    else
-        REALESRGAN_BIN="$(pwd)/$extracted_dir/$binary_name"
+    fi
+    
+    if [ -z "$REALESRGAN_BIN" ]; then
+        echo -e "${RED}Error:${NC} Could not find Real-ESRGAN binary in extracted files"
+        cd "$original_dir"
+        exit 1
     fi
     
     # Make binary executable
@@ -253,9 +254,33 @@ check_realesrgan() {
     # Check if it's in our local directory
     if [ -d "$REALESRGAN_DIR" ]; then
         local binary_name="realesrgan-ncnn-vulkan"
-        local extracted_dir
         local current_dir
         current_dir=$(pwd)
+        
+        # Check if binary is directly in the model directory
+        if [ -f "$REALESRGAN_DIR/$binary_name" ]; then
+            REALESRGAN_BIN="$current_dir/$REALESRGAN_DIR/$binary_name"
+            # Test if binary actually works (check for macOS security issues)
+            local test_output
+            test_output=$("$REALESRGAN_BIN" -h 2>&1) || true
+            if [[ "$test_output" == *"Usage: realesrgan-ncnn-vulkan"* ]]; then
+                return 0
+            else
+                echo -e "${RED}Error:${NC} Real-ESRGAN binary is blocked by macOS security"
+                echo ""
+                echo -e "${YELLOW}To fix this issue:${NC}"
+                echo "1. Open System Preferences > Security & Privacy"
+                echo "2. Click 'Allow Anyway' for the blocked Real-ESRGAN binary"
+                echo "3. Or run this command in terminal:"
+                echo "   sudo xattr -rd com.apple.quarantine \"$REALESRGAN_BIN\""
+                echo ""
+                echo "Then run the script again."
+                exit 1
+            fi
+        fi
+        
+        # Check in subdirectories (fallback)
+        local extracted_dir
         extracted_dir=$(find "$REALESRGAN_DIR" -maxdepth 1 -type d -name "*Real-ESRGAN*" -o -name "*realesrgan*" | head -1)
         
         if [ -n "$extracted_dir" ]; then
@@ -415,14 +440,17 @@ process_cbz() {
         
         echo "    Upscaling: $basename"
         
-        # Run Real-ESRGAN upscaling to PNG
-        if ! "$REALESRGAN_BIN" -i "$image_file" -o "$upscaled_png" -n "$MODEL" -s "$SCALE" > /dev/null 2>&1; then
+        # Get absolute path to models directory
+        local models_dir="$original_dir/$REALESRGAN_DIR/models"
+        
+        # Run Real-ESRGAN upscaling to PNG with model path
+        if ! "$REALESRGAN_BIN" -i "$image_file" -o "$upscaled_png" -n "$MODEL" -s "$SCALE" -m "$models_dir" > /dev/null 2>&1; then
             echo -e "${RED}    Error:${NC} Failed to upscale $basename"
             continue
         fi
         
         # Convert PNG to JPEG with specified quality
-        if ! convert "$upscaled_png" -quality "$JPG_QUALITY" "$final_jpg"; then
+        if ! magick "$upscaled_png" -quality "$JPG_QUALITY" "$final_jpg"; then
             echo -e "${RED}    Error:${NC} Failed to convert $basename to JPEG"
             rm -f "$upscaled_png"
             continue
