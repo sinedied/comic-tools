@@ -15,14 +15,16 @@ NC='\033[0m' # No Color
 
 # Default configuration
 DEFAULT_JPG_QUALITY=90
-DEFAULT_MODEL="realesrgan-x4plus"
+DEFAULT_MODEL="realesrgan-x4plus-anime"
+DEFAULT_RESIZE_PERCENT=50
 REALESRGAN_DIR=".model"
 REALESRGAN_BIN=""
 
 # Configuration variables
 JPG_QUALITY=$DEFAULT_JPG_QUALITY
 MODEL=$DEFAULT_MODEL
-SCALE=4
+MODEL_SCALE=4
+RESIZE_PERCENT=$DEFAULT_RESIZE_PERCENT
 NORMALIZE=false
 SEARCH_DIR=""
 
@@ -36,18 +38,20 @@ show_usage() {
     echo "Usage: $0 [file_or_directory] [options]"
     echo ""
     echo "Options:"
-    echo "  -q, --quality NUM    JPEG quality (1-100, default: $DEFAULT_JPG_QUALITY)"
-    echo "  -m, --model NAME     Real-ESRGAN model (default: $DEFAULT_MODEL)"
-    echo "                       Available: realesrgan-x4plus, realesrgan-x4plus-anime, realesr-animevideov3"
-    echo "  -s, --scale NUM      Scale factor (4 for most models, default: 4)"
-    echo "  -n, --normalize      Apply ImageMagick normalize to enhance contrast"
-    echo "  -h, --help           Show this help message"
+    echo "  -q, --quality NUM       JPEG quality (1-100, default: $DEFAULT_JPG_QUALITY)"
+    echo "  -m, --model NAME        Real-ESRGAN model (default: $DEFAULT_MODEL)"
+    echo "                          Available: realesrgan-x4plus, realesrgan-x4plus-anime, realesr-animevideov3"
+    echo "  --model-scale NUM       Model's built-in scale factor (4 for most models, default: 4)"
+    echo "  -r, --resize PERCENT    Resize final image to percentage (default: ${DEFAULT_RESIZE_PERCENT}%)"
+    echo "  -n, --normalize         Apply ImageMagick normalize to enhance contrast"
+    echo "  -h, --help              Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0 comic.cbz"
     echo "  $0 /path/to/comics/ --quality 85"
     echo "  $0 comic.cbz --model realesrgan-x4plus-anime"
     echo "  $0 comic.cbz --normalize --quality 95"
+    echo "  $0 comic.cbz --resize 75 --model-scale 4"
 }
 
 # Parse command line arguments
@@ -66,10 +70,18 @@ parse_arguments() {
                 MODEL="$2"
                 shift 2
                 ;;
-            -s|--scale)
-                SCALE="$2"
-                if ! [[ "$SCALE" =~ ^[0-9]+$ ]] || [ "$SCALE" -lt 1 ]; then
-                    echo -e "${RED}Error:${NC} Scale must be a positive number"
+            --model-scale)
+                MODEL_SCALE="$2"
+                if ! [[ "$MODEL_SCALE" =~ ^[0-9]+$ ]] || [ "$MODEL_SCALE" -lt 1 ]; then
+                    echo -e "${RED}Error:${NC} Model scale must be a positive number"
+                    exit 1
+                fi
+                shift 2
+                ;;
+            -r|--resize)
+                RESIZE_PERCENT="$2"
+                if ! [[ "$RESIZE_PERCENT" =~ ^[0-9]+$ ]] || [ "$RESIZE_PERCENT" -lt 1 ] || [ "$RESIZE_PERCENT" -gt 1000 ]; then
+                    echo -e "${RED}Error:${NC} Resize percentage must be between 1 and 1000"
                     exit 1
                 fi
                 shift 2
@@ -81,6 +93,10 @@ parse_arguments() {
             -h|--help)
                 show_usage
                 exit 0
+                ;;
+            -s|--scale)
+                echo -e "${RED}Error:${NC} Option -s/--scale is deprecated. Use --model-scale instead."
+                exit 1
                 ;;
             -*)
                 echo -e "${RED}Error:${NC} Unknown option: $1"
@@ -466,7 +482,7 @@ process_cbz() {
         local models_dir="$original_dir/$REALESRGAN_DIR/models"
         
         # Run Real-ESRGAN upscaling to PNG with model path
-        if ! "$REALESRGAN_BIN" -i "$image_file" -o "$upscaled_png" -n "$MODEL" -s "$SCALE" -m "$models_dir" > /dev/null 2>&1; then
+        if ! "$REALESRGAN_BIN" -i "$image_file" -o "$upscaled_png" -n "$MODEL" -s "$MODEL_SCALE" -m "$models_dir" > /dev/null 2>&1; then
             echo -e "${RED}    Error:${NC} Failed to upscale $basename"
             echo -e "${RED}  Error:${NC} Stopping processing of $cbz_file due to upscaling failure"
             cd "$original_dir"
@@ -478,6 +494,9 @@ process_cbz() {
         local magick_cmd="magick \"$upscaled_png\""
         if [ "$NORMALIZE" = true ]; then
             magick_cmd="$magick_cmd -normalize"
+        fi
+        if [ "$RESIZE_PERCENT" -ne 100 ]; then
+            magick_cmd="$magick_cmd -resize ${RESIZE_PERCENT}%"
         fi
         magick_cmd="$magick_cmd -quality \"$JPG_QUALITY\" \"$final_jpg\""
         
@@ -553,11 +572,11 @@ process_directory() {
     
     echo -e "${BLUE}Searching for CBZ files in:${NC} $dir"
     
-    # Find all CBZ files
+    # Find all CBZ files, excluding those in upscaled directories
     local cbz_files=()
     while IFS= read -r -d '' file; do
         cbz_files+=("$file")
-    done < <(find "$dir" -type f -iname "*.cbz" -print0)
+    done < <(find "$dir" -type f -iname "*.cbz" -not -path "*/upscaled/*" -print0)
     
     if [ ${#cbz_files[@]} -eq 0 ]; then
         echo -e "${YELLOW}No CBZ files found in $dir${NC}"
@@ -594,7 +613,7 @@ print_statistics() {
 # Main function
 main() {
     echo -e "${BLUE}CBZ Upscaler (Real-ESRGAN)${NC}"
-    local config_msg="Quality: $JPG_QUALITY, Model: $MODEL, Scale: ${SCALE}x"
+    local config_msg="Quality: $JPG_QUALITY, Model: $MODEL, Model-Scale: ${MODEL_SCALE}x, Resize: ${RESIZE_PERCENT}%"
     if [ "$NORMALIZE" = true ]; then
         config_msg="$config_msg, Normalize: enabled"
     fi
