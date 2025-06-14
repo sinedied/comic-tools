@@ -375,7 +375,19 @@ process_cbz() {
     cbz_dir=$(dirname "$cbz_file")
     cbz_name=$(basename "$cbz_file" .cbz)
     temp_dir=$(mktemp -d)
-    local upscaled_dir="$cbz_dir/upscaled"
+    
+    # Determine output directory - avoid nested "upscaled" directories
+    local upscaled_dir
+    if [[ "$cbz_dir" =~ /upscaled$ ]]; then
+        # If input is already in an upscaled directory, use the parent directory's upscaled folder
+        # but add a suffix to distinguish from the original
+        upscaled_dir="$cbz_dir"
+        cbz_name="${cbz_name}_upscaled"
+    else
+        # Otherwise, create upscaled subdirectory
+        upscaled_dir="$cbz_dir/upscaled"
+    fi
+    
     local output_file="$upscaled_dir/${cbz_name}.cbz"
     local original_dir
     original_dir=$(pwd)
@@ -445,14 +457,20 @@ process_cbz() {
         # Run Real-ESRGAN upscaling to PNG with model path
         if ! "$REALESRGAN_BIN" -i "$image_file" -o "$upscaled_png" -n "$MODEL" -s "$SCALE" -m "$models_dir" > /dev/null 2>&1; then
             echo -e "${RED}    Error:${NC} Failed to upscale $basename"
-            continue
+            echo -e "${RED}  Error:${NC} Stopping processing of $cbz_file due to upscaling failure"
+            cd "$original_dir"
+            rm -rf "$temp_dir"
+            return 1
         fi
         
         # Convert PNG to JPEG with specified quality
         if ! magick "$upscaled_png" -quality "$JPG_QUALITY" "$final_jpg"; then
             echo -e "${RED}    Error:${NC} Failed to convert $basename to JPEG"
+            echo -e "${RED}  Error:${NC} Stopping processing of $cbz_file due to conversion failure"
             rm -f "$upscaled_png"
-            continue
+            cd "$original_dir"
+            rm -rf "$temp_dir"
+            return 1
         fi
         
         # Remove intermediate PNG file
@@ -473,8 +491,28 @@ process_cbz() {
     # Create new CBZ archive
     echo "  Creating upscaled CBZ..."
     cd upscaled
-    if ! zip -r "$output_file" . > /dev/null 2>&1; then
+    
+    # Create the archive with a relative path first, then move it
+    local temp_cbz="${cbz_name}.cbz"
+    if ! zip -r "$temp_cbz" . > /dev/null 2>&1; then
         echo -e "${RED}  Error:${NC} Failed to create CBZ archive"
+        cd "$original_dir"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    # Ensure the output directory exists
+    if ! mkdir -p "$(dirname "$output_file")"; then
+        echo -e "${RED}  Error:${NC} Failed to create output directory: $(dirname "$output_file")"
+        cd "$original_dir"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    # Move the archive to the final location
+    if ! mv "$temp_cbz" "$output_file"; then
+        echo -e "${RED}  Error:${NC} Failed to move CBZ archive to output location"
+        echo -e "${RED}  Debug:${NC} Trying to move from $(pwd)/$temp_cbz to $output_file"
         cd "$original_dir"
         rm -rf "$temp_dir"
         return 1
