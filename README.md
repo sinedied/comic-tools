@@ -31,6 +31,24 @@ Converts PDF files to CBZ format by extracting embedded images.
 - `pdfimages` (from poppler-utils) - for extracting images from PDFs
 - `zip` - for creating ZIP archives
 
+### `upscale-cbz.sh` - CBZ Image Upscaler
+Upscales images in CBZ files using AI-powered Real-ESRGAN-ncnn-vulkan and recompresses them as high-quality JPEG.
+
+**Features:**
+- Automatic download and setup of Real-ESRGAN-ncnn-vulkan (first run)
+- AI-powered image upscaling with multiple models available
+- Configurable scale factors and JPEG quality output
+- Batch processing of directories
+- Cross-platform support (macOS and Linux)
+- High-quality JPEG output with customizable quality settings
+
+**Requirements:**
+- `unzip` - for extracting CBZ archives
+- `zip` - for creating CBZ archives
+- `curl` - for downloading Real-ESRGAN
+- `imagemagick` (convert command) - for JPEG conversion with quality control
+- Vulkan-compatible GPU (recommended for performance)
+
 ## Installation
 
 ### macOS (using Homebrew)
@@ -40,6 +58,9 @@ brew install rar
 
 # For PDF to CBZ conversion
 brew install poppler
+
+# For CBZ upscaling
+brew install imagemagick
 ```
 
 ### Ubuntu/Debian
@@ -49,6 +70,9 @@ sudo apt install unrar zip
 
 # For PDF to CBZ conversion
 sudo apt install poppler-utils zip
+
+# For CBZ upscaling
+sudo apt install imagemagick
 ```
 
 ## Usage
@@ -71,12 +95,43 @@ sudo apt install poppler-utils zip
 ./pdf2cbz.sh /path/to/pdf/directory
 ```
 
+### Upscale CBZ files
+```bash
+# Upscale a single CBZ file (4x scale, 90% JPEG quality)
+./upscale-cbz.sh comic.cbz
+
+# Upscale all CBZ files in a directory with custom quality
+./upscale-cbz.sh /path/to/comics/ --quality 85
+
+# Use different AI model for anime-style art
+./upscale-cbz.sh comic.cbz --model realesrgan-x4plus-anime
+
+# High quality upscale
+./upscale-cbz.sh comic.cbz --quality 95
+
+# Show all available options
+./upscale-cbz.sh --help
+```
+
 ## Output
 
-- Converted files are saved in a `converted/` subdirectory within each processed directory
+- **CBR/PDF conversion**: Converted files are saved in a `converted/` subdirectory
+- **CBZ upscaling**: Upscaled files are saved in an `upscaled/` subdirectory with `_upscaled` suffix
 - Original files are preserved (not deleted)
 - Progress and statistics are displayed during conversion
 - Error messages are shown for any files that fail to convert
+
+## AI Upscaling Details
+
+The upscaler uses [Real-ESRGAN-ncnn-vulkan](https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan) for high-quality image enhancement:
+
+- **realesrgan-x4plus**: General purpose model, good for most images (4x upscale)
+- **realesrgan-x4plus-anime**: Specialized for anime/artwork style images (4x upscale)
+- **realesr-animevideov3**: Optimized for anime video frames (4x upscale)
+- Automatic first-time download and setup
+- GPU acceleration via Vulkan (falls back to CPU if needed)
+- PNG intermediate output converted to JPEG with configurable quality
+- Typically uses 4x scale factor (model-dependent)
 
 ## File Formats
 
