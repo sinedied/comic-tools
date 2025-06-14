@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 
 # Default configuration
 DEFAULT_JPG_QUALITY=90
-DEFAULT_MODEL="realesrgan-x4plus-anime"
+DEFAULT_MODEL="realesrgan-x4plus"
 DEFAULT_RESIZE_PERCENT=50
 REALESRGAN_DIR=".model"
 REALESRGAN_BIN=""
