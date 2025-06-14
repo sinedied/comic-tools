@@ -40,7 +40,6 @@ check_dependencies() {
         echo -e "\n${YELLOW}Install with:${NC}"
         echo "  macOS: brew install unrar zip"
         echo "  Ubuntu/Debian: sudo apt install unrar zip"
-        echo "  CentOS/RHEL: sudo yum install unrar zip"
         exit 1
     fi
 }

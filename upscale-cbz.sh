@@ -362,7 +362,6 @@ check_dependencies() {
         echo -e "\n${YELLOW}Install with:${NC}"
         echo "  macOS: brew install unzip zip curl imagemagick"
         echo "  Ubuntu/Debian: sudo apt install unzip zip curl imagemagick"
-        echo "  CentOS/RHEL: sudo yum install unzip zip curl ImageMagick"
         exit 1
     fi
 }

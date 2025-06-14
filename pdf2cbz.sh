@@ -33,7 +33,6 @@ check_dependencies() {
         echo -e "\n${YELLOW}Install with:${NC}"
         echo "  macOS: brew install poppler zip"
         echo "  Ubuntu/Debian: sudo apt install poppler-utils zip"
-        echo "  CentOS/RHEL: sudo yum install poppler-utils zip"
         exit 1
     fi
 }
