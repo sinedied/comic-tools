@@ -392,6 +392,10 @@ process_cbz() {
     local original_dir
     original_dir=$(pwd)
     
+    # Convert output path to absolute path
+    local abs_output_file
+    abs_output_file="$original_dir/$output_file"
+    
     # Convert to absolute path
     local abs_cbz_file
     abs_cbz_file=$(realpath "$cbz_file")
@@ -406,7 +410,7 @@ process_cbz() {
     fi
     
     # Skip if upscaled CBZ already exists
-    if [ -f "$output_file" ]; then
+    if [ -f "$abs_output_file" ]; then
         echo -e "${YELLOW}  Skipping:${NC} Upscaled CBZ already exists"
         rm -rf "$temp_dir"
         return 0
@@ -502,17 +506,17 @@ process_cbz() {
     fi
     
     # Ensure the output directory exists
-    if ! mkdir -p "$(dirname "$output_file")"; then
-        echo -e "${RED}  Error:${NC} Failed to create output directory: $(dirname "$output_file")"
+    if ! mkdir -p "$(dirname "$abs_output_file")"; then
+        echo -e "${RED}  Error:${NC} Failed to create output directory: $(dirname "$abs_output_file")"
         cd "$original_dir"
         rm -rf "$temp_dir"
         return 1
     fi
     
     # Move the archive to the final location
-    if ! mv "$temp_cbz" "$output_file"; then
+    if ! mv "$temp_cbz" "$abs_output_file"; then
         echo -e "${RED}  Error:${NC} Failed to move CBZ archive to output location"
-        echo -e "${RED}  Debug:${NC} Trying to move from $(pwd)/$temp_cbz to $output_file"
+        echo -e "${RED}  Debug:${NC} Trying to move from $(pwd)/$temp_cbz to $abs_output_file"
         cd "$original_dir"
         rm -rf "$temp_dir"
         return 1
@@ -521,7 +525,7 @@ process_cbz() {
     cd "$original_dir"
     rm -rf "$temp_dir"
     
-    echo -e "${GREEN}  Success:${NC} Created $output_file"
+    echo -e "${GREEN}  Success:${NC} Created $abs_output_file"
     return 0
 }
 
