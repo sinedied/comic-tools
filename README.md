@@ -22,7 +22,7 @@ Converts CBR (Comic Book RAR) files to CBZ (Comic Book ZIP) format recursively.
 Converts PDF files to CBZ format by extracting embedded images.
 
 **Features:**
-- Extracts images from PDF files
+- Extracts images from PDF files (no loss of quality)
 - Creates organized CBZ archives
 - Progress tracking and error reporting
 - Handles various image formats within PDFs
@@ -49,15 +49,6 @@ sudo apt install unrar zip
 
 # For PDF to CBZ conversion
 sudo apt install poppler-utils zip
-```
-
-### CentOS/RHEL
-```bash
-# For CBR to CBZ conversion
-sudo yum install unrar zip
-
-# For PDF to CBZ conversion
-sudo yum install poppler-utils zip
 ```
 
 ## Usage
@@ -92,10 +83,6 @@ sudo yum install poppler-utils zip
 - **CBR**: Comic Book RAR - RAR compressed archive containing comic images
 - **CBZ**: Comic Book ZIP - ZIP compressed archive containing comic images
 - **PDF**: Portable Document Format - may contain embedded comic images
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
