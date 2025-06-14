@@ -217,6 +217,24 @@ setup_realesrgan() {
     # Make binary executable
     chmod +x "$REALESRGAN_BIN"
     
+    # Test if binary runs (check for macOS security issues)
+    echo "  Testing Real-ESRGAN binary..."
+    local test_output
+    test_output=$("$REALESRGAN_BIN" -h 2>&1) || true
+    if [[ "$test_output" != *"Usage: realesrgan-ncnn-vulkan"* ]]; then
+        echo -e "${RED}Error:${NC} Real-ESRGAN binary cannot run due to macOS security restrictions"
+        echo ""
+        echo -e "${YELLOW}To fix this issue:${NC}"
+        echo "1. Open System Preferences > Security & Privacy"
+        echo "2. Click 'Allow Anyway' for the blocked Real-ESRGAN binary"
+        echo "3. Or run this command in terminal:"
+        echo "   sudo xattr -rd com.apple.quarantine \"$REALESRGAN_BIN\""
+        echo ""
+        echo "Then run the script again."
+        cd "$original_dir"
+        exit 1
+    fi
+    
     # Clean up archive
     rm -f "$filename"
     
@@ -243,14 +261,46 @@ check_realesrgan() {
         if [ -n "$extracted_dir" ]; then
             if [ -f "$extracted_dir/$binary_name" ]; then
                 REALESRGAN_BIN="$current_dir/$extracted_dir/$binary_name"
-                return 0
+                # Test if binary actually works (check for macOS security issues)
+                local test_output
+                test_output=$("$REALESRGAN_BIN" -h 2>&1) || true
+                if [[ "$test_output" == *"Usage: realesrgan-ncnn-vulkan"* ]]; then
+                    return 0
+                else
+                    echo -e "${RED}Error:${NC} Real-ESRGAN binary is blocked by macOS security"
+                    echo ""
+                    echo -e "${YELLOW}To fix this issue:${NC}"
+                    echo "1. Open System Preferences > Security & Privacy"
+                    echo "2. Click 'Allow Anyway' for the blocked Real-ESRGAN binary"
+                    echo "3. Or run this command in terminal:"
+                    echo "   sudo xattr -rd com.apple.quarantine \"$REALESRGAN_BIN\""
+                    echo ""
+                    echo "Then run the script again."
+                    exit 1
+                fi
             else
                 # Look for .app bundle
                 local app_bundle
                 for app_bundle in "$extracted_dir"/*.app; do
                     if [ -f "$app_bundle/Contents/MacOS/$binary_name" ]; then
                         REALESRGAN_BIN="$current_dir/$app_bundle/Contents/MacOS/$binary_name"
-                        return 0
+                        # Test if binary actually works (check for macOS security issues)
+                        local test_output
+                        test_output=$("$REALESRGAN_BIN" -h 2>&1) || true
+                        if [[ "$test_output" == *"Usage: realesrgan-ncnn-vulkan"* ]]; then
+                            return 0
+                        else
+                            echo -e "${RED}Error:${NC} Real-ESRGAN binary is blocked by macOS security"
+                            echo ""
+                            echo -e "${YELLOW}To fix this issue:${NC}"
+                            echo "1. Open System Preferences > Security & Privacy"
+                            echo "2. Click 'Allow Anyway' for the blocked Real-ESRGAN binary"
+                            echo "3. Or run this command in terminal:"
+                            echo "   sudo xattr -rd com.apple.quarantine \"$REALESRGAN_BIN\""
+                            echo ""
+                            echo "Then run the script again."
+                            exit 1
+                        fi
                     fi
                 done
             fi
@@ -306,6 +356,10 @@ process_cbz() {
     local original_dir
     original_dir=$(pwd)
     
+    # Convert to absolute path
+    local abs_cbz_file
+    abs_cbz_file=$(realpath "$cbz_file")
+    
     echo -e "${YELLOW}Processing:${NC} $cbz_file"
     
     # Create upscaled directory if it doesn't exist
@@ -325,7 +379,7 @@ process_cbz() {
     # Extract CBZ to temporary directory
     echo "  Extracting CBZ..."
     cd "$temp_dir"
-    if ! unzip -q "$cbz_file"; then
+    if ! unzip -q "$abs_cbz_file"; then
         echo -e "${RED}  Error:${NC} Failed to extract $cbz_file"
         cd "$original_dir"
         rm -rf "$temp_dir"
