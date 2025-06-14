@@ -23,6 +23,7 @@ REALESRGAN_BIN=""
 JPG_QUALITY=$DEFAULT_JPG_QUALITY
 MODEL=$DEFAULT_MODEL
 SCALE=4
+NORMALIZE=false
 SEARCH_DIR=""
 
 # Statistics
@@ -39,12 +40,14 @@ show_usage() {
     echo "  -m, --model NAME     Real-ESRGAN model (default: $DEFAULT_MODEL)"
     echo "                       Available: realesrgan-x4plus, realesrgan-x4plus-anime, realesr-animevideov3"
     echo "  -s, --scale NUM      Scale factor (4 for most models, default: 4)"
+    echo "  -n, --normalize      Apply ImageMagick normalize to enhance contrast"
     echo "  -h, --help           Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0 comic.cbz"
     echo "  $0 /path/to/comics/ --quality 85"
     echo "  $0 comic.cbz --model realesrgan-x4plus-anime"
+    echo "  $0 comic.cbz --normalize --quality 95"
 }
 
 # Parse command line arguments
@@ -70,6 +73,10 @@ parse_arguments() {
                     exit 1
                 fi
                 shift 2
+                ;;
+            -n|--normalize)
+                NORMALIZE=true
+                shift
                 ;;
             -h|--help)
                 show_usage
@@ -468,7 +475,13 @@ process_cbz() {
         fi
         
         # Convert PNG to JPEG with specified quality
-        if ! magick "$upscaled_png" -quality "$JPG_QUALITY" "$final_jpg"; then
+        local magick_cmd="magick \"$upscaled_png\""
+        if [ "$NORMALIZE" = true ]; then
+            magick_cmd="$magick_cmd -normalize"
+        fi
+        magick_cmd="$magick_cmd -quality \"$JPG_QUALITY\" \"$final_jpg\""
+        
+        if ! eval "$magick_cmd"; then
             echo -e "${RED}    Error:${NC} Failed to convert $basename to JPEG"
             echo -e "${RED}  Error:${NC} Stopping processing of $cbz_file due to conversion failure"
             rm -f "$upscaled_png"
@@ -581,7 +594,11 @@ print_statistics() {
 # Main function
 main() {
     echo -e "${BLUE}CBZ Upscaler (Real-ESRGAN)${NC}"
-    echo "Quality: $JPG_QUALITY, Model: $MODEL, Scale: ${SCALE}x"
+    local config_msg="Quality: $JPG_QUALITY, Model: $MODEL, Scale: ${SCALE}x"
+    if [ "$NORMALIZE" = true ]; then
+        config_msg="$config_msg, Normalize: enabled"
+    fi
+    echo "$config_msg"
     echo ""
     
     # Check dependencies
