@@ -25,6 +25,7 @@ JPG_QUALITY=$DEFAULT_JPG_QUALITY
 MODEL=$DEFAULT_MODEL
 MODEL_SCALE=4
 RESIZE_PERCENT=$DEFAULT_RESIZE_PERCENT
+PRE_RESIZE_PERCENT=100
 NORMALIZE=false
 MAX_IMAGES=0
 SEARCH_DIR=""
@@ -43,6 +44,7 @@ show_usage() {
     echo "  -m, --model NAME        Real-ESRGAN model (default: $DEFAULT_MODEL)"
     echo "                          Available: realesrgan-x4plus, realesrgan-x4plus-anime, realesr-animevideov3"
     echo "  --model-scale NUM       Model's built-in scale factor (4 for most models, default: 4)"
+    echo "  --pre-resize PERCENT    Resize image before upscaling (default: 100% - no resize)"
     echo "  -r, --resize PERCENT    Resize final image to percentage (default: ${DEFAULT_RESIZE_PERCENT}%)"
     echo "  -n, --normalize         Apply ImageMagick normalize to enhance contrast"
     echo "  --max-images NUM        Process only the first N images (default: all images)"
@@ -54,6 +56,7 @@ show_usage() {
     echo "  $0 comic.cbz --model realesrgan-x4plus-anime"
     echo "  $0 comic.cbz --normalize --quality 95"
     echo "  $0 comic.cbz --resize 75 --model-scale 4"
+    echo "  $0 comic.cbz --pre-resize 50 --resize 100  # Downscale before upscaling"
     echo "  $0 comic.cbz --max-images 5  # Process only first 5 images"
 }
 
@@ -77,6 +80,14 @@ parse_arguments() {
                 MODEL_SCALE="$2"
                 if ! [[ "$MODEL_SCALE" =~ ^[0-9]+$ ]] || [ "$MODEL_SCALE" -lt 1 ]; then
                     echo -e "${RED}Error:${NC} Model scale must be a positive number"
+                    exit 1
+                fi
+                shift 2
+                ;;
+            --pre-resize)
+                PRE_RESIZE_PERCENT="$2"
+                if ! [[ "$PRE_RESIZE_PERCENT" =~ ^[0-9]+$ ]] || [ "$PRE_RESIZE_PERCENT" -lt 1 ] || [ "$PRE_RESIZE_PERCENT" -gt 1000 ]; then
+                    echo -e "${RED}Error:${NC} Pre-resize percentage must be between 1 and 1000"
                     exit 1
                 fi
                 shift 2
@@ -557,13 +568,44 @@ except Exception as e:
         
         echo "    Upscaling: $basename ($resolution)"
         
+        # Handle pre-resize if specified
+        local input_file="$image_file"
+        local pre_resized_file=""
+        if [ "$PRE_RESIZE_PERCENT" -ne 100 ]; then
+            pre_resized_file="upscaled/${name}_pre_resized.${image_file##*.}"
+            echo "      Pre-resizing to ${PRE_RESIZE_PERCENT}%..."
+            if ! magick "$image_file" -resize "${PRE_RESIZE_PERCENT}%" "$pre_resized_file"; then
+                echo -e "${RED}    Error:${NC} Failed to pre-resize $basename"
+                echo -e "${RED}  Error:${NC} Stopping processing of $cbz_file due to pre-resize failure"
+                cd "$original_dir"
+                rm -rf "$temp_dir"
+                return 1
+            fi
+            input_file="$pre_resized_file"
+            
+            # Get pre-resized resolution
+            local pre_resolution=""
+            if command -v magick >/dev/null; then
+                pre_resolution=$(magick identify -format "%wx%h" "$input_file" 2>/dev/null || echo "unknown")
+            elif command -v identify >/dev/null; then
+                pre_resolution=$(identify -format "%wx%h" "$input_file" 2>/dev/null || echo "unknown")
+            else
+                pre_resolution="unknown"
+            fi
+            echo "      Pre-resized to: $pre_resolution"
+        fi
+        
         # Get absolute path to models directory
         local models_dir="$original_dir/$REALESRGAN_DIR/models"
         
         # Run Real-ESRGAN upscaling to PNG with model path
-        if ! "$REALESRGAN_BIN" -i "$image_file" -o "$upscaled_png" -n "$MODEL" -s "$MODEL_SCALE" -m "$models_dir" > /dev/null 2>&1; then
+        if ! "$REALESRGAN_BIN" -i "$input_file" -o "$upscaled_png" -n "$MODEL" -s "$MODEL_SCALE" -m "$models_dir" > /dev/null 2>&1; then
             echo -e "${RED}    Error:${NC} Failed to upscale $basename"
             echo -e "${RED}  Error:${NC} Stopping processing of $cbz_file due to upscaling failure"
+            # Clean up pre-resized file if it exists
+            if [ -n "$pre_resized_file" ] && [ -f "$pre_resized_file" ]; then
+                rm -f "$pre_resized_file"
+            fi
             cd "$original_dir"
             rm -rf "$temp_dir"
             return 1
@@ -583,6 +625,10 @@ except Exception as e:
             echo -e "${RED}    Error:${NC} Failed to convert $basename to JPEG"
             echo -e "${RED}  Error:${NC} Stopping processing of $cbz_file due to conversion failure"
             rm -f "$upscaled_png"
+            # Clean up pre-resized file if it exists
+            if [ -n "$pre_resized_file" ] && [ -f "$pre_resized_file" ]; then
+                rm -f "$pre_resized_file"
+            fi
             cd "$original_dir"
             rm -rf "$temp_dir"
             return 1
@@ -600,8 +646,11 @@ except Exception as e:
         
         echo "      → Final resolution: $final_resolution"
         
-        # Remove intermediate PNG file
+        # Remove intermediate files
         rm -f "$upscaled_png"
+        if [ -n "$pre_resized_file" ] && [ -f "$pre_resized_file" ]; then
+            rm -f "$pre_resized_file"
+        fi
         
         ((processed++))
     done
@@ -704,7 +753,11 @@ print_statistics() {
 # Main function
 main() {
     echo -e "${BLUE}CBZ Upscaler (Real-ESRGAN)${NC}"
-    local config_msg="Quality: $JPG_QUALITY, Model: $MODEL, Model-Scale: ${MODEL_SCALE}x, Resize: ${RESIZE_PERCENT}%"
+    local config_msg="Quality: $JPG_QUALITY, Model: $MODEL, Model-Scale: ${MODEL_SCALE}x"
+    if [ "$PRE_RESIZE_PERCENT" -ne 100 ]; then
+        config_msg="$config_msg, Pre-Resize: ${PRE_RESIZE_PERCENT}%"
+    fi
+    config_msg="$config_msg, Resize: ${RESIZE_PERCENT}%"
     if [ "$NORMALIZE" = true ]; then
         config_msg="$config_msg, Normalize: enabled"
     fi
