@@ -26,6 +26,7 @@ MODEL=$DEFAULT_MODEL
 MODEL_SCALE=4
 RESIZE_PERCENT=$DEFAULT_RESIZE_PERCENT
 NORMALIZE=false
+MAX_IMAGES=0
 SEARCH_DIR=""
 
 # Statistics
@@ -44,6 +45,7 @@ show_usage() {
     echo "  --model-scale NUM       Model's built-in scale factor (4 for most models, default: 4)"
     echo "  -r, --resize PERCENT    Resize final image to percentage (default: ${DEFAULT_RESIZE_PERCENT}%)"
     echo "  -n, --normalize         Apply ImageMagick normalize to enhance contrast"
+    echo "  --max-images NUM        Process only the first N images (default: all images)"
     echo "  -h, --help              Show this help message"
     echo ""
     echo "Examples:"
@@ -52,6 +54,7 @@ show_usage() {
     echo "  $0 comic.cbz --model realesrgan-x4plus-anime"
     echo "  $0 comic.cbz --normalize --quality 95"
     echo "  $0 comic.cbz --resize 75 --model-scale 4"
+    echo "  $0 comic.cbz --max-images 5  # Process only first 5 images"
 }
 
 # Parse command line arguments
@@ -89,6 +92,14 @@ parse_arguments() {
             -n|--normalize)
                 NORMALIZE=true
                 shift
+                ;;
+            --max-images)
+                MAX_IMAGES="$2"
+                if ! [[ "$MAX_IMAGES" =~ ^[0-9]+$ ]] || [ "$MAX_IMAGES" -lt 1 ]; then
+                    echo -e "${RED}Error:${NC} Max images must be a positive number"
+                    exit 1
+                fi
+                shift 2
                 ;;
             -h|--help)
                 show_usage
@@ -510,7 +521,17 @@ except Exception as e:
         return 0
     fi
     
-    echo "  Found ${#image_files[@]} images to upscale"
+    # Limit the number of images if specified
+    local total_images=${#image_files[@]}
+    local images_to_process=$total_images
+    if [ "$MAX_IMAGES" -gt 0 ] && [ "$MAX_IMAGES" -lt "$total_images" ]; then
+        images_to_process=$MAX_IMAGES
+        echo "  Found $total_images images, processing first $images_to_process"
+        # Truncate the array to only include the first N images
+        image_files=("${image_files[@]:0:$MAX_IMAGES}")
+    else
+        echo "  Found $total_images images to upscale"
+    fi
     
     # Create upscaled directory
     mkdir -p upscaled
@@ -664,6 +685,9 @@ main() {
     local config_msg="Quality: $JPG_QUALITY, Model: $MODEL, Model-Scale: ${MODEL_SCALE}x, Resize: ${RESIZE_PERCENT}%"
     if [ "$NORMALIZE" = true ]; then
         config_msg="$config_msg, Normalize: enabled"
+    fi
+    if [ "$MAX_IMAGES" -gt 0 ]; then
+        config_msg="$config_msg, Max-Images: $MAX_IMAGES"
     fi
     echo "$config_msg"
     echo ""
