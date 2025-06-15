@@ -545,7 +545,17 @@ except Exception as e:
         local upscaled_png="upscaled/${name}.png"
         local final_jpg="upscaled/${name}.jpg"
         
-        echo "    Upscaling: $basename"
+        # Get original image resolution
+        local resolution=""
+        if command -v magick >/dev/null; then
+            resolution=$(magick identify -format "%wx%h" "$image_file" 2>/dev/null || echo "unknown")
+        elif command -v identify >/dev/null; then
+            resolution=$(identify -format "%wx%h" "$image_file" 2>/dev/null || echo "unknown")
+        else
+            resolution="unknown"
+        fi
+        
+        echo "    Upscaling: $basename ($resolution)"
         
         # Get absolute path to models directory
         local models_dir="$original_dir/$REALESRGAN_DIR/models"
