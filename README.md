@@ -1,6 +1,6 @@
 # Comic Tools
 
-A collection of command-line tools for processing and converting digital comics into different formats.
+A collection of command-line tools for processing, converting, and validating digital comics in different formats.
 
 > **Note:** These scripts were generated with the assistance of [GitHub Copilot](https://github.com/features/copilot), an AI-powered coding tool.
 
@@ -50,6 +50,21 @@ Upscales images in CBZ files using AI-powered Real-ESRGAN-ncnn-vulkan and recomp
 - `curl` - for downloading Real-ESRGAN
 - `imagemagick` (convert command) - for JPEG conversion with quality control
 - Vulkan-compatible GPU (recommended for performance)
+
+### `check-format.sh` - Comic Archive Format Validator
+Validates that comic archive files have the correct headers matching their file extensions.
+
+**Features:**
+- Checks CBZ files for proper ZIP headers
+- Checks CBR files for proper RAR headers
+- Single file or recursive directory processing
+- Case-insensitive file extension detection
+- Clear categorization of mismatched formats
+- Cross-platform compatibility (macOS and Linux)
+
+**Requirements:**
+- `hexdump` - for reading file headers (standard on Unix systems)
+- `find` - for recursive directory search (standard on Unix systems)
 
 ## Installation
 
@@ -113,6 +128,24 @@ sudo apt install imagemagick
 
 # Show all available options
 ./upscale-cbz.sh --help
+```
+
+### Check comic archive formats
+```bash
+# Check all comic files in current directory
+./check-format.sh
+
+# Check all comic files in a specific directory
+./check-format.sh /path/to/comics/
+
+# Check a single CBZ file
+./check-format.sh comic.cbz
+
+# Check a single CBR file
+./check-format.sh comic.cbr
+
+# Show help and output format details
+./check-format.sh --help
 ```
 
 ## Output
