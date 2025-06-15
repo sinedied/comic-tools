@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Script to check if .cbz files have proper ZIP headers or are actually RAR archives
-# Only prints the names of files that are not true ZIP files
-# Usage: ./check-cbz.sh [file_or_directory]
+# Script to check if comic archive files have correct headers
+# Checks .cbz files for ZIP headers and .cbr files for RAR headers
+# Only prints the names of files that don't have the expected headers
+# Usage: ./check-format.sh [file_or_directory]
 
 set -euo pipefail
 
@@ -71,7 +72,7 @@ is_rar_file() {
     return 1
 }
 
-# Function to process a single CBZ file
+# Function to process a single comic archive file
 process_file() {
     local file="$1"
     
@@ -81,22 +82,31 @@ process_file() {
         return 1
     fi
     
-    # Check if it's a .cbz file (case insensitive)
+    # Check if it's a comic archive file (case insensitive)
     local filename_lower
     filename_lower=$(echo "$file" | tr '[:upper:]' '[:lower:]')
-    if [[ "$filename_lower" != *.cbz ]]; then
-        echo -e "${RED}Error: File is not a .cbz file: $file${NC}" >&2
-        return 1
-    fi
     
-    # Check the header
-    if ! check_zip_header "$file"; then
-        # Determine what type of file it actually is
-        if is_rar_file "$file"; then
-            echo -e "${YELLOW}RAR:${NC} $file"
-        else
-            echo -e "${RED}INVALID:${NC} $file"
+    if [[ "$filename_lower" == *.cbz ]]; then
+        # CBZ file should have ZIP header
+        if ! check_zip_header "$file"; then
+            if is_rar_file "$file"; then
+                echo -e "${YELLOW}CBZ-RAR:${NC} $file"
+            else
+                echo -e "${RED}CBZ-INVALID:${NC} $file"
+            fi
         fi
+    elif [[ "$filename_lower" == *.cbr ]]; then
+        # CBR file should have RAR header
+        if ! is_rar_file "$file"; then
+            if check_zip_header "$file"; then
+                echo -e "${YELLOW}CBR-ZIP:${NC} $file"
+            else
+                echo -e "${RED}CBR-INVALID:${NC} $file"
+            fi
+        fi
+    else
+        echo -e "${RED}Error: File is not a .cbz or .cbr file: $file${NC}" >&2
+        return 1
     fi
     
     return 0
@@ -106,17 +116,31 @@ process_file() {
 process_directory() {
     local search_dir="$1"
     
-    # Find all .cbz files recursively
+    # Find all .cbz and .cbr files recursively
     while IFS= read -r -d '' file; do
-        if ! check_zip_header "$file"; then
-            # Determine what type of file it actually is
-            if is_rar_file "$file"; then
-                echo -e "${YELLOW}RAR:${NC} $file"
-            else
-                echo -e "${RED}INVALID:${NC} $file"
+        local filename_lower
+        filename_lower=$(echo "$file" | tr '[:upper:]' '[:lower:]')
+        
+        if [[ "$filename_lower" == *.cbz ]]; then
+            # CBZ file should have ZIP header
+            if ! check_zip_header "$file"; then
+                if is_rar_file "$file"; then
+                    echo -e "${YELLOW}CBZ-RAR:${NC} $file"
+                else
+                    echo -e "${RED}CBZ-INVALID:${NC} $file"
+                fi
+            fi
+        elif [[ "$filename_lower" == *.cbr ]]; then
+            # CBR file should have RAR header
+            if ! is_rar_file "$file"; then
+                if check_zip_header "$file"; then
+                    echo -e "${YELLOW}CBR-ZIP:${NC} $file"
+                else
+                    echo -e "${RED}CBR-INVALID:${NC} $file"
+                fi
             fi
         fi
-    done < <(find "$search_dir" -type f -name "*.cbz" -print0 2>/dev/null)
+    done < <(find "$search_dir" -type f \( -iname "*.cbz" -o -iname "*.cbr" \) -print0 2>/dev/null)
     
     return 0
 }
@@ -148,21 +172,26 @@ main() {
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "Usage: $0 [file_or_directory]"
     echo ""
-    echo "Checks .cbz files to identify those that don't have proper ZIP headers."
+    echo "Checks comic archive files to verify they have the correct headers:"
+    echo "  - .cbz files should have ZIP headers"
+    echo "  - .cbr files should have RAR headers"
     echo "Can check a single file or recursively search a directory."
-    echo "Only prints the names of files that are not true ZIP files."
+    echo "Only prints the names of files that don't have the expected headers."
     echo ""
     echo "Arguments:"
-    echo "  file_or_directory    CBZ file or directory to search (default: current directory)"
+    echo "  file_or_directory    Comic file (.cbz/.cbr) or directory to search (default: current directory)"
     echo ""
     echo "Output format:"
-    echo "  RAR: filename    - File is actually a RAR archive"
-    echo "  INVALID: filename - File has an unknown/invalid header"
+    echo "  CBZ-RAR: filename      - CBZ file that actually contains RAR data"
+    echo "  CBZ-INVALID: filename  - CBZ file with unknown/invalid header"
+    echo "  CBR-ZIP: filename      - CBR file that actually contains ZIP data"
+    echo "  CBR-INVALID: filename  - CBR file with unknown/invalid header"
     echo ""
     echo "Examples:"
     echo "  $0                       # Check current directory"
     echo "  $0 /path/to/comics       # Check specific directory"
-    echo "  $0 comic.cbz             # Check single file"
+    echo "  $0 comic.cbz             # Check single CBZ file"
+    echo "  $0 comic.cbr             # Check single CBR file"
     echo "  $0 /path/to/comic.cbz    # Check single file with full path"
     exit 0
 fi
