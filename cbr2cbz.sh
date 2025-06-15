@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Script to convert CBR files to CBZ format recursively
 # CBR files are RAR archives, CBZ files are ZIP archives
 # Requires unrar and zip

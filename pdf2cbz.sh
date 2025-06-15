@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Script to convert PDF files to CBZ format by extracting images
 # Requires pdfimages (from poppler-utils) and zip
 #   `brew install poppler`

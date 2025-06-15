@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Script to upscale CBZ files using Real-ESRGAN-ncnn-vulkan
 # Automatically downloads Real-ESRGAN-ncnn-vulkan if not available
 # Upscales images and recompresses as JPEG with configurable quality
