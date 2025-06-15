@@ -588,6 +588,18 @@ except Exception as e:
             return 1
         fi
         
+        # Get final image resolution
+        local final_resolution=""
+        if command -v magick >/dev/null; then
+            final_resolution=$(magick identify -format "%wx%h" "$final_jpg" 2>/dev/null || echo "unknown")
+        elif command -v identify >/dev/null; then
+            final_resolution=$(identify -format "%wx%h" "$final_jpg" 2>/dev/null || echo "unknown")
+        else
+            final_resolution="unknown"
+        fi
+        
+        echo "      → Final resolution: $final_resolution"
+        
         # Remove intermediate PNG file
         rm -f "$upscaled_png"
         
