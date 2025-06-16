@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # Script to check if comic archive files have correct headers
 # Checks .cbz files for ZIP headers and .cbr files for RAR headers
-# Only prints the names of files that don't have the expected headers
-# Usage: ./check-format.sh [file_or_directory]
+# Can optionally rename files with incorrect extensions to match their content
+# Usage: ./check-format.sh [OPTIONS] [file_or_directory]
 
 set -euo pipefail
 
 # Color codes for output
 RED='\033[0;31m'
+GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Global variables
+FIX_MODE=false
 
 # Function to check if a file has a ZIP header
 check_zip_header() {
@@ -72,6 +76,41 @@ is_rar_file() {
     return 1
 }
 
+# Function to fix file extension based on content
+fix_file_extension() {
+    local file="$1"
+    local new_extension="$2"
+    
+    # Get the directory and base filename without extension
+    local dir
+    local basename
+    
+    dir=$(dirname "$file")
+    basename=$(basename "$file")
+    
+    # Remove the current extension
+    basename_no_ext="${basename%.*}"
+    
+    # Create new filename
+    local new_filename="${basename_no_ext}.${new_extension}"
+    local new_filepath="${dir}/${new_filename}"
+    
+    # Check if target file already exists
+    if [[ -e "$new_filepath" ]]; then
+        echo -e "${RED}Error: Cannot rename '$file' - target file already exists: $new_filepath${NC}" >&2
+        return 1
+    fi
+    
+    # Rename the file
+    if mv "$file" "$new_filepath"; then
+        echo -e "${GREEN}FIXED:${NC} $file → $new_filepath"
+        return 0
+    else
+        echo -e "${RED}Error: Failed to rename '$file' to '$new_filepath'${NC}" >&2
+        return 1
+    fi
+}
+
 # Function to process a single comic archive file
 process_file() {
     local file="$1"
@@ -90,7 +129,11 @@ process_file() {
         # CBZ file should have ZIP header
         if ! check_zip_header "$file"; then
             if is_rar_file "$file"; then
-                echo -e "${YELLOW}CBZ-RAR:${NC} $file"
+                if [[ "$FIX_MODE" == "true" ]]; then
+                    fix_file_extension "$file" "cbr"
+                else
+                    echo -e "${YELLOW}CBZ-RAR:${NC} $file"
+                fi
             else
                 echo -e "${RED}CBZ-INVALID:${NC} $file"
             fi
@@ -99,7 +142,11 @@ process_file() {
         # CBR file should have RAR header
         if ! is_rar_file "$file"; then
             if check_zip_header "$file"; then
-                echo -e "${YELLOW}CBR-ZIP:${NC} $file"
+                if [[ "$FIX_MODE" == "true" ]]; then
+                    fix_file_extension "$file" "cbz"
+                else
+                    echo -e "${YELLOW}CBR-ZIP:${NC} $file"
+                fi
             else
                 echo -e "${RED}CBR-INVALID:${NC} $file"
             fi
@@ -125,7 +172,11 @@ process_directory() {
             # CBZ file should have ZIP header
             if ! check_zip_header "$file"; then
                 if is_rar_file "$file"; then
-                    echo -e "${YELLOW}CBZ-RAR:${NC} $file"
+                    if [[ "$FIX_MODE" == "true" ]]; then
+                        fix_file_extension "$file" "cbr"
+                    else
+                        echo -e "${YELLOW}CBZ-RAR:${NC} $file"
+                    fi
                 else
                     echo -e "${RED}CBZ-INVALID:${NC} $file"
                 fi
@@ -134,7 +185,11 @@ process_directory() {
             # CBR file should have RAR header
             if ! is_rar_file "$file"; then
                 if check_zip_header "$file"; then
-                    echo -e "${YELLOW}CBR-ZIP:${NC} $file"
+                    if [[ "$FIX_MODE" == "true" ]]; then
+                        fix_file_extension "$file" "cbz"
+                    else
+                        echo -e "${YELLOW}CBR-ZIP:${NC} $file"
+                    fi
                 else
                     echo -e "${RED}CBR-INVALID:${NC} $file"
                 fi
@@ -145,9 +200,63 @@ process_directory() {
     return 0
 }
 
+# Parse command line arguments
+TARGET_PATH="."
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --fix)
+            FIX_MODE=true
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS] [file_or_directory]"
+            echo ""
+            echo "Checks comic archive files to verify they have the correct headers:"
+            echo "  - .cbz files should have ZIP headers"
+            echo "  - .cbr files should have RAR headers"
+            echo "Can check a single file or recursively search a directory."
+            echo ""
+            echo "Options:"
+            echo "  --fix                Rename files with incorrect extensions to match their content"
+            echo "  --help, -h           Show this help message"
+            echo ""
+            echo "Arguments:"
+            echo "  file_or_directory    Comic file (.cbz/.cbr) or directory to search (default: current directory)"
+            echo ""
+            echo "Output format (without --fix):"
+            echo "  CBZ-RAR: filename      - CBZ file that actually contains RAR data"
+            echo "  CBZ-INVALID: filename  - CBZ file with unknown/invalid header"
+            echo "  CBR-ZIP: filename      - CBR file that actually contains ZIP data"
+            echo "  CBR-INVALID: filename  - CBR file with unknown/invalid header"
+            echo ""
+            echo "Output format (with --fix):"
+            echo "  FIXED: oldname → newname  - File successfully renamed"
+            echo "  CBZ-INVALID: filename     - CBZ file with unknown/invalid header (cannot fix)"
+            echo "  CBR-INVALID: filename     - CBR file with unknown/invalid header (cannot fix)"
+            echo ""
+            echo "Examples:"
+            echo "  $0                       # Check current directory"
+            echo "  $0 /path/to/comics       # Check specific directory"
+            echo "  $0 --fix                 # Check and fix current directory"
+            echo "  $0 --fix comic.cbz       # Check and fix single file"
+            echo "  $0 --fix /path/to/comics # Check and fix specific directory"
+            exit 0
+            ;;
+        -*)
+            echo -e "${RED}Error: Unknown option: $1${NC}" >&2
+            echo "Use --help for usage information." >&2
+            exit 1
+            ;;
+        *)
+            TARGET_PATH="$1"
+            shift
+            ;;
+    esac
+done
+
 # Main function
 main() {
-    local target="${1:-.}"
+    local target="$TARGET_PATH"
     
     # Check if target exists
     if [[ ! -e "$target" ]]; then
@@ -168,33 +277,5 @@ main() {
     fi
 }
 
-# Show usage if --help is passed
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-    echo "Usage: $0 [file_or_directory]"
-    echo ""
-    echo "Checks comic archive files to verify they have the correct headers:"
-    echo "  - .cbz files should have ZIP headers"
-    echo "  - .cbr files should have RAR headers"
-    echo "Can check a single file or recursively search a directory."
-    echo "Only prints the names of files that don't have the expected headers."
-    echo ""
-    echo "Arguments:"
-    echo "  file_or_directory    Comic file (.cbz/.cbr) or directory to search (default: current directory)"
-    echo ""
-    echo "Output format:"
-    echo "  CBZ-RAR: filename      - CBZ file that actually contains RAR data"
-    echo "  CBZ-INVALID: filename  - CBZ file with unknown/invalid header"
-    echo "  CBR-ZIP: filename      - CBR file that actually contains ZIP data"
-    echo "  CBR-INVALID: filename  - CBR file with unknown/invalid header"
-    echo ""
-    echo "Examples:"
-    echo "  $0                       # Check current directory"
-    echo "  $0 /path/to/comics       # Check specific directory"
-    echo "  $0 comic.cbz             # Check single CBZ file"
-    echo "  $0 comic.cbr             # Check single CBR file"
-    echo "  $0 /path/to/comic.cbz    # Check single file with full path"
-    exit 0
-fi
-
 # Run the main function
-main "$@"
+main
