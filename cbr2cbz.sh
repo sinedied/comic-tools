@@ -38,7 +38,7 @@ check_dependencies() {
         echo -e "${RED}Error: Missing required tools:${NC}"
         printf '%s\n' "${missing_tools[@]}"
         echo -e "\n${YELLOW}Install with:${NC}"
-        echo "  macOS: brew install unrar zip"
+        echo "  macOS: brew install rar zip"
         echo "  Ubuntu/Debian: sudo apt install unrar zip"
         exit 1
     fi
